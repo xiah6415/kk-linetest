@@ -42,7 +42,7 @@
     display: flex;
     gap: 20px;
     justify-content: center;
-    flex-wrap: wrap;
+    align-items: flex-start;
   }
 
   .panel {
@@ -53,6 +53,9 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    flex: 1;
+    min-width: 0;
+    max-width: 520px;
   }
 
   .panel-label {
@@ -104,6 +107,31 @@
   #drawCanvas {
     cursor: crosshair;
   }
+  .draw-box {
+    background: #f4f2ed !important;
+  }
+
+  /* Color picker */
+  .color-wrap {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+  }
+  .color-wrap input[type=color] {
+    position: absolute;
+    opacity: 0;
+    width: 0; height: 0;
+    pointer-events: none;
+  }
+  #colorSwatch {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    display: block;
+    transition: border-color .15s;
+  }
+  .color-wrap:hover #colorSwatch { border-color: #818cf8; }
 
   /* Ghost opacity row */
   .ghost-row {
@@ -324,24 +352,53 @@
     flex-shrink: 0;
   }
 
-  .preset-row {
+  /* Right panel: canvas + thumbnail strip */
+  .draw-panel-body {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
+    gap: 10px;
+    align-items: flex-start;
   }
-  .preset-btn {
-    padding: 4px 10px;
-    border: 1px solid #222238;
-    border-radius: 5px;
+  .draw-panel-body .canvas-box {
+    flex: 1;
+    min-width: 0;
+  }
+  .thumb-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 64px;
+    flex-shrink: 0;
+  }
+  .thumb-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 6px;
+    border: 2px solid #222238;
+    overflow: hidden;
+    cursor: pointer;
+    padding: 0;
+    background: #1a1a2e;
+    transition: border-color .15s;
+    flex-shrink: 0;
+  }
+  .thumb-btn img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .thumb-btn:hover { border-color: #555; }
+  .thumb-btn.active { border-color: #818cf8; }
+  .thumb-add {
+    width: 64px; height: 32px;
+    border-radius: 6px;
+    border: 1px dashed #333;
     background: none;
-    color: #888;
+    color: #444;
     font-size: .65rem;
     cursor: pointer;
     transition: all .15s;
   }
-  .preset-btn:hover { border-color: #818cf8; color: #818cf8; }
-  .preset-btn.active { border-color: #818cf8; color: #818cf8; background: #818cf811; }
+  .thumb-add:hover { border-color: #818cf8; color: #818cf8; }
 
   /* Responsive */
   @media (max-width: 719px) {
@@ -364,23 +421,27 @@
       <canvas id="refCanvas" width="480" height="480"></canvas>
       <div class="ref-drop-hint" id="refDropHint">拖放參考圖到此處</div>
     </div>
-    <div class="preset-row" id="presetRow"></div>
     <div class="edge-row">
       <span>邊緣靈敏度</span>
       <input type="range" id="edgeSlider" min="8" max="100" value="30">
       <span id="edgeVal">30</span>
-      <button class="btn-sm" onclick="document.getElementById('refFileInput').click()" style="margin-left:auto">＋ 自訂</button>
     </div>
     <input type="file" id="refFileInput" accept="image/*" style="display:none" onchange="loadRefImage(event)">
   </div>
 
-  <!-- RIGHT: Drawing area -->
+  <!-- RIGHT: Drawing area + thumbnail strip -->
   <div class="panel">
     <div class="panel-label">Drawing Area 作畫區</div>
-    <div class="canvas-box">
-      <div class="draw-wrap">
-        <canvas id="ghostCanvas" width="480" height="480"></canvas>
-        <canvas id="drawCanvas" width="480" height="480"></canvas>
+    <div class="draw-panel-body">
+      <div class="canvas-box draw-box" id="drawBox">
+        <div class="draw-wrap">
+          <canvas id="ghostCanvas" width="480" height="480"></canvas>
+          <canvas id="drawCanvas" width="480" height="480"></canvas>
+        </div>
+      </div>
+      <div class="thumb-strip" id="thumbStrip">
+        <!-- filled by JS -->
+        <button class="thumb-add" onclick="document.getElementById('refFileInput').click()">＋ 自訂</button>
       </div>
     </div>
     <div class="ghost-row">
@@ -401,6 +462,11 @@
     <input type="range" id="sizeSlider" min="1" max="25" value="5">
     <span id="sizeVal">5</span>
   </div>
+  <div class="toolbar-sep"></div>
+  <label class="color-wrap" title="筆刷顏色">
+    <input type="color" id="colorPicker" value="#1c1c24">
+    <span id="colorSwatch" style="background:#1c1c24"></span>
+  </label>
   <div class="toolbar-sep"></div>
   <button class="btn-sm" id="btnClear">清除</button>
   <button class="btn-sm" id="btnUndo">↩ 復原</button>
@@ -467,10 +533,11 @@ const gCtx  = ghostCanvas.getContext('2d');
 const dCtx  = drawCanvas.getContext('2d');
 
 // ─── Drawing state ───────────────────────────────────────────────────────────
-let tool      = 'pen';
-let brushSize = 5;
-let isDown    = false;
-let lastX     = 0, lastY = 0;
+let tool        = 'pen';
+let brushSize   = 5;
+let brushColor  = '#1c1c24';
+let isDown      = false;
+let lastX       = 0, lastY = 0;
 let history   = [];
 let hasDrawn  = false;
 
@@ -642,29 +709,31 @@ function resetReference() {
 }
 
 function setActivePreset(idx) {
-  document.querySelectorAll('.preset-btn').forEach((b, i) => {
+  document.querySelectorAll('.thumb-btn').forEach((b, i) => {
     b.classList.toggle('active', i === idx);
   });
 }
 
-// Build preset buttons
+// Build thumbnail strip
 (function buildPresets() {
-  const row = document.getElementById('presetRow');
-  if (!row || typeof PRESET_REFS === 'undefined') return;
+  const strip = document.getElementById('thumbStrip');
+  if (!strip || typeof PRESET_REFS === 'undefined') return;
+  const addBtn = strip.querySelector('.thumb-add');
   PRESET_REFS.forEach((ref, i) => {
     const btn = document.createElement('button');
-    btn.className = 'preset-btn';
-    btn.textContent = ref.label;
-    btn.onclick = () => {
-      applyRefSrc(ref.src);
-      setActivePreset(i);
-    };
-    row.appendChild(btn);
+    btn.className = 'thumb-btn';
+    btn.title = ref.label;
+    const img = document.createElement('img');
+    img.src = ref.src;
+    btn.appendChild(img);
+    btn.onclick = () => { applyRefSrc(ref.src); setActivePreset(i); };
+    strip.insertBefore(btn, addBtn);
   });
-  // Auto-load first preset
+  // Auto-load random preset
   if (PRESET_REFS.length > 0) {
-    applyRefSrc(PRESET_REFS[0].src);
-    setTimeout(() => setActivePreset(0), 100);
+    const randIdx = Math.floor(Math.random() * PRESET_REFS.length);
+    applyRefSrc(PRESET_REFS[randIdx].src);
+    setTimeout(() => setActivePreset(randIdx), 100);
   }
 })();
 
@@ -744,6 +813,15 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
 });
 
+// Color picker
+const colorPicker = document.getElementById('colorPicker');
+const colorSwatch = document.getElementById('colorSwatch');
+document.querySelector('.color-wrap').addEventListener('click', () => colorPicker.click());
+colorPicker.addEventListener('input', () => {
+  brushColor = colorPicker.value;
+  colorSwatch.style.background = brushColor;
+});
+
 // ─── Drawing event helpers ────────────────────────────────────────────────────
 function getPos(e) {
   const r = drawCanvas.getBoundingClientRect();
@@ -769,7 +847,7 @@ function startDraw(e) {
     dCtx.strokeStyle = 'rgba(255,255,255,1)';
   } else {
     dCtx.globalCompositeOperation = 'source-over';
-    dCtx.strokeStyle = 'rgba(28,28,36,0.9)';
+    dCtx.strokeStyle = brushColor;
   }
   dCtx.lineWidth   = brushSize;
   dCtx.lineCap     = 'round';
