@@ -57,6 +57,8 @@
     min-width: 0;
     max-width: 520px;
   }
+  /* right panel is wider by sidebar(44) + gap(8) so canvases end up equal size */
+  .draw-panel { max-width: 572px; }
 
   .panel-label {
     font-size: .72rem;
@@ -452,7 +454,7 @@
   </div>
 
   <!-- RIGHT: Drawing area + tool sidebar -->
-  <div class="panel">
+  <div class="panel draw-panel">
     <div class="panel-label">Drawing Area 作畫區</div>
     <div class="draw-and-tools">
       <div class="canvas-box draw-box" id="drawBox">
