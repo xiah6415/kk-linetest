@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CONSISTENCY CHALLENGE</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d0d18;
+    color: #ddd8f0;
+    font-family: 'Hiragino Sans', 'Noto Sans TC', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 48px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .header h1 {
+    font-size: clamp(1.6rem, 5vw, 2.8rem);
+    font-weight: 700;
+    background: linear-gradient(90deg, #f472b6, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: .12em;
+    line-height: 1.15;
+  }
+  .header p {
+    margin-top: 8px;
+    font-size: .82rem;
+    color: #555;
+    letter-spacing: .04em;
+  }
+
+  /* Two-column layout */
+  .panels {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .panel {
+    background: #12121f;
+    border: 1px solid #222238;
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel-label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    color: #555;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #1e1e35;
+  }
+
+  /* Canvas boxes */
+  .canvas-box {
+    background: #1a1a2e;
+    border: 1px solid #1e1e35;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Draw panel stacking */
+  .draw-wrap {
+    position: relative;
+    width: 480px;
+    height: 480px;
+  }
+  .draw-wrap canvas {
+    position: absolute;
+    top: 0; left: 0;
+    display: block;
+  }
+  #drawCanvas {
+    cursor: crosshair;
+  }
+
+  /* Ghost opacity row */
+  .ghost-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: .78rem;
+    color: #777;
+  }
+  .ghost-row input[type=range] {
+    flex: 1;
+    accent-color: #818cf8;
+  }
+  .ghost-row span {
+    min-width: 28px;
+    text-align: right;
+    color: #aaa;
+    font-size: .75rem;
+  }
+
+  /* Edge sensitivity row */
+  .edge-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: .78rem;
+    color: #777;
+    margin-top: 4px;
+  }
+  .edge-row input[type=range] {
+    flex: 1;
+    accent-color: #f472b6;
+  }
+  .edge-row span {
+    min-width: 28px;
+    text-align: right;
+    color: #aaa;
+    font-size: .75rem;
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 20px;
+  }
+
+  .ref-drop-hint {
+    position:absolute; inset:0; display:flex; align-items:center;
+    justify-content:center; font-size:.72rem; color:#333;
+    pointer-events:none; opacity:0; transition:opacity .2s;
+  }
+  #refBox.drag-over .ref-drop-hint { opacity:1; background:rgba(129,140,248,.08); }
+  #refBox.drag-over { border-color:#818cf8 !important; }
+
+  .btn-sm {
+    background: transparent;
+    border: 1px solid #222238;
+    border-radius: 7px;
+    color: #ddd8f0;
+    font-size: .82rem;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: border-color .18s, color .18s;
+    font-family: inherit;
+    letter-spacing: .03em;
+    user-select: none;
+  }
+  .btn-sm:hover:not(:disabled) {
+    border-color: #818cf8;
+    color: #818cf8;
+  }
+  .btn-sm.active {
+    border-color: #818cf8;
+    color: #818cf8;
+    background: rgba(129,140,248,.08);
+  }
+  .btn-sm:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+  }
+
+  .toolbar-sep {
+    width: 1px;
+    height: 22px;
+    background: #222238;
+  }
+
+  .size-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .78rem;
+    color: #777;
+  }
+  .size-row input[type=range] {
+    width: 90px;
+    accent-color: #818cf8;
+  }
+
+  /* Calculate button */
+  .calc-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 22px;
+  }
+  .btn-calc {
+    background: linear-gradient(90deg, #f472b6, #818cf8);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: inherit;
+    letter-spacing: .08em;
+    padding: 12px 40px;
+    cursor: pointer;
+    transition: opacity .2s, transform .15s;
+  }
+  .btn-calc:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+  .btn-calc:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+
+  /* Result section */
+  #resultSection {
+    display: none;
+    max-width: 560px;
+    margin: 32px auto 0;
+    background: #12121f;
+    border: 1px solid #222238;
+    border-radius: 14px;
+    padding: 28px 24px 32px;
+    text-align: center;
+  }
+  #resultSection.visible { display: block; }
+
+  .score-ring-wrap {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto 18px;
+  }
+  .score-ring-wrap svg {
+    transform: rotate(-90deg);
+  }
+  .score-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+  }
+  .score-num {
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+    background: linear-gradient(90deg, #f472b6, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .score-label {
+    font-size: .68rem;
+    color: #555;
+    margin-top: 2px;
+    letter-spacing: .1em;
+  }
+  .grade-badge {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .result-desc {
+    font-size: .82rem;
+    color: #777;
+    margin-bottom: 20px;
+  }
+
+  .compare-label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    color: #555;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .compare-label::after {
+    content: ''; flex: 1; height: 1px; background: #1e1e35;
+  }
+
+  #compareCanvas {
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto;
+  }
+
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    font-size: .74rem;
+    color: #888;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 719px) {
+    .panels { flex-direction: column; align-items: center; }
+    .draw-wrap, .draw-wrap canvas, .canvas-box canvas { width: 340px !important; height: 340px !important; }
+    .draw-wrap { width: 340px !important; height: 340px !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <h1>CONSISTENCY CHALLENGE</h1>
+  <p>臨摹一致率測試 — 在右側臨摹參考圖，點計算查看輪廓一致率</p>
+</header>
+
+<div class="panels">
+  <!-- LEFT: Reference -->
+  <div class="panel">
+    <div class="panel-label">Reference 參考圖</div>
+    <div class="canvas-box" id="refBox">
+      <canvas id="refCanvas" width="480" height="480"></canvas>
+      <div class="ref-drop-hint" id="refDropHint">拖放參考圖到此處</div>
+    </div>
+    <div class="edge-row">
+      <span>邊緣靈敏度</span>
+      <input type="range" id="edgeSlider" min="8" max="100" value="30">
+      <span id="edgeVal">30</span>
+      <button class="btn-sm" onclick="document.getElementById('refFileInput').click()" style="margin-left:8px">載入參考圖</button>
+      <button class="btn-sm" id="resetRefBtn" onclick="resetReference()" style="display:none">恢復預設</button>
+    </div>
+    <input type="file" id="refFileInput" accept="image/*" style="display:none" onchange="loadRefImage(event)">
+  </div>
+
+  <!-- RIGHT: Drawing area -->
+  <div class="panel">
+    <div class="panel-label">Drawing Area 作畫區</div>
+    <div class="canvas-box">
+      <div class="draw-wrap">
+        <canvas id="ghostCanvas" width="480" height="480"></canvas>
+        <canvas id="drawCanvas" width="480" height="480"></canvas>
+      </div>
+    </div>
+    <div class="ghost-row">
+      <span>參考透明度</span>
+      <input type="range" id="ghostSlider" min="10" max="60" value="20">
+      <span id="ghostVal">20%</span>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <button class="btn-sm active" id="btnPen">🖊 筆</button>
+  <button class="btn-sm" id="btnEraser">橡皮擦</button>
+  <div class="toolbar-sep"></div>
+  <div class="size-row">
+    <span>筆刷大小</span>
+    <input type="range" id="sizeSlider" min="1" max="25" value="5">
+    <span id="sizeVal">5</span>
+  </div>
+  <div class="toolbar-sep"></div>
+  <button class="btn-sm" id="btnClear">清除</button>
+  <button class="btn-sm" id="btnUndo">↩ 復原</button>
+</div>
+
+<div class="calc-wrap">
+  <button class="btn-calc" id="btnCalc" disabled>計算一致率</button>
+</div>
+
+<!-- Result -->
+<div id="resultSection">
+  <div class="score-ring-wrap">
+    <svg width="160" height="160" viewBox="0 0 160 160">
+      <circle cx="80" cy="80" r="62" fill="none" stroke="#1e1e35" stroke-width="12"/>
+      <circle id="ringArc" cx="80" cy="80" r="62" fill="none"
+              stroke="url(#ringGrad)" stroke-width="12"
+              stroke-linecap="round"
+              stroke-dasharray="389.6" stroke-dashoffset="389.6"/>
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#f472b6"/>
+          <stop offset="100%" stop-color="#818cf8"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <div class="score-center">
+      <div class="score-num" id="scoreNum">0</div>
+      <div class="score-label">SCORE</div>
+    </div>
+  </div>
+
+  <div class="grade-badge" id="gradeBadge">—</div>
+  <div class="result-desc" id="resultDesc"></div>
+
+  <div class="compare-label">Comparison 比較疊合</div>
+  <canvas id="compareCanvas" width="460" height="460"></canvas>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(248,113,113,1)"></div>僅參考輪廓</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(96,165,250,1)"></div>僅用戶筆跡</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(163,230,53,1)"></div>重疊</div>
+  </div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const CX = 240, CY = 248, K = 1.05;
+const INK = '#1c1c24';
+const BG  = '#f2f0e8';
+
+// ─── Canvas refs ─────────────────────────────────────────────────────────────
+const refCanvas   = document.getElementById('refCanvas');
+const ghostCanvas = document.getElementById('ghostCanvas');
+const drawCanvas  = document.getElementById('drawCanvas');
+const rCtx  = refCanvas.getContext('2d');
+const gCtx  = ghostCanvas.getContext('2d');
+const dCtx  = drawCanvas.getContext('2d');
+
+// ─── Drawing state ───────────────────────────────────────────────────────────
+let tool      = 'pen';
+let brushSize = 5;
+let isDown    = false;
+let lastX     = 0, lastY = 0;
+let history   = [];
+let hasDrawn  = false;
+
+// ─── Figure drawing ──────────────────────────────────────────────────────────
+function tx(x) { return CX + x * K; }
+function ty(y) { return CY + y * K; }
+
+function drawFigure(ctx, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth   = 2.5;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  function m(x,y)   { ctx.moveTo(tx(x), ty(y)); }
+  function l(x,y)   { ctx.lineTo(tx(x), ty(y)); }
+  function bz(x1,y1,x2,y2,x3,y3) { ctx.bezierCurveTo(tx(x1),ty(y1), tx(x2),ty(y2), tx(x3),ty(y3)); }
+  function ellipse(x,y,rx,ry) {
+    ctx.beginPath();
+    ctx.ellipse(tx(x), ty(y), rx*K, ry*K, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  // Head
+  ellipse(0, -150, 22, 26);
+
+  // Hair
+  ctx.beginPath(); m(-16,-168); bz(-8,-188, 8,-188, 16,-168); ctx.stroke();
+  ctx.beginPath(); m(-20,-162); bz(-28,-152, -26,-140, -20,-134); ctx.stroke();
+  ctx.beginPath(); m(20,-162);  bz(28,-152, 26,-140, 20,-134);   ctx.stroke();
+
+  // Neck
+  ctx.beginPath(); m(-6,-124); l(-8,-110); ctx.stroke();
+  ctx.beginPath(); m(6,-124);  l(8,-110);  ctx.stroke();
+
+  // Shoulders
+  ctx.beginPath(); m(-8,-110); bz(-18,-114,-38,-110,-50,-103); ctx.stroke();
+  ctx.beginPath(); m(8,-110);  bz(18,-114, 38,-110, 50,-103);  ctx.stroke();
+
+  // Left upper arm
+  ctx.beginPath(); m(-50,-103); bz(-62,-85,-70,-62,-72,-48);  ctx.stroke();
+  ctx.beginPath(); m(-42,-96);  bz(-52,-78,-58,-58,-58,-46);  ctx.stroke();
+  // Left elbow
+  ctx.beginPath(); m(-72,-48);  bz(-74,-40,-64,-36,-58,-46);  ctx.stroke();
+  // Left forearm
+  ctx.beginPath(); m(-72,-48);  bz(-78,-28,-80,-8,-78,12);    ctx.stroke();
+  ctx.beginPath(); m(-58,-46);  bz(-62,-26,-62,-6,-62,14);    ctx.stroke();
+  // Left hand
+  ellipse(-70, 20, 9, 6);
+
+  // Right arm (mirror)
+  ctx.beginPath(); m(50,-103);  bz(62,-85, 70,-62, 72,-48);   ctx.stroke();
+  ctx.beginPath(); m(42,-96);   bz(52,-78, 58,-58, 58,-46);   ctx.stroke();
+  ctx.beginPath(); m(72,-48);   bz(74,-40, 64,-36, 58,-46);   ctx.stroke();
+  ctx.beginPath(); m(72,-48);   bz(78,-28, 80,-8, 78,12);     ctx.stroke();
+  ctx.beginPath(); m(58,-46);   bz(62,-26, 62,-6, 62,14);     ctx.stroke();
+  ellipse(70, 20, 9, 6);
+
+  // Torso
+  ctx.beginPath(); m(-36,-98);  bz(-40,-68,-44,-28,-48,-2); l(-50,50); ctx.stroke();
+  ctx.beginPath(); m(36,-98);   bz(40,-68, 44,-28, 48,-2);  l(50,50);  ctx.stroke();
+  // Waist
+  ctx.beginPath(); m(-50,50); bz(-28,56, 28,56, 50,50); ctx.stroke();
+
+  // Hips
+  ctx.beginPath(); m(-50,50);  bz(-62,56,-78,64,-82,74); ctx.stroke();
+  ctx.beginPath(); m(50,50);   bz(62,56, 78,64, 82,74);  ctx.stroke();
+  ctx.beginPath(); m(-82,74);  bz(-55,80, 55,80, 82,74); ctx.stroke();
+
+  // Left thigh
+  ctx.beginPath(); m(-82,74);  bz(-100,92,-118,112,-120,130); ctx.stroke();
+  ctx.beginPath(); m(-38,76);  bz(-52,96,-66,114,-68,132);    ctx.stroke();
+  // Left knee
+  ctx.beginPath(); m(-120,130); bz(-122,142,-110,148,-98,148); ctx.stroke();
+  ctx.beginPath(); m(-98,148);  bz(-86,148,-74,140,-68,132);   ctx.stroke();
+
+  // Left lower leg
+  ctx.beginPath(); m(-120,130); bz(-124,150,-118,168,-112,178); ctx.stroke();
+  ctx.beginPath(); m(-68,132);  bz(-70,152,-72,168,-74,178);    ctx.stroke();
+
+  // Left foot
+  ctx.beginPath(); m(-112,178); bz(-116,186,-118,194,-116,196); ctx.stroke();
+  ctx.beginPath(); m(-116,196); bz(-130,196,-148,194,-154,192); ctx.stroke();
+  ctx.beginPath(); m(-154,192); bz(-148,202,-128,204,-108,202); bz(-94,200,-80,196,-74,194); ctx.stroke();
+  ctx.beginPath(); m(-74,178);  bz(-72,186,-72,192,-74,194);    ctx.stroke();
+
+  // Right thigh
+  ctx.beginPath(); m(82,74);   bz(100,92, 118,112, 120,130);  ctx.stroke();
+  ctx.beginPath(); m(38,76);   bz(52,96,  66,114,  68,132);   ctx.stroke();
+  // Right knee
+  ctx.beginPath(); m(120,130); bz(122,142,110,148, 98,148);   ctx.stroke();
+  ctx.beginPath(); m(98,148);  bz(86,148, 74,140,  68,132);   ctx.stroke();
+
+  // Right lower leg
+  ctx.beginPath(); m(120,130); bz(124,150,118,168,112,178);   ctx.stroke();
+  ctx.beginPath(); m(68,132);  bz(70,152, 72,168, 74,178);    ctx.stroke();
+
+  // Right foot
+  ctx.beginPath(); m(112,178); bz(116,186,118,194,116,196);   ctx.stroke();
+  ctx.beginPath(); m(116,196); bz(130,196,148,194,154,192);   ctx.stroke();
+  ctx.beginPath(); m(154,192); bz(148,202,128,204,108,202);   bz(94,200,80,196,74,194); ctx.stroke();
+  ctx.beginPath(); m(74,178);  bz(72,186, 72,192, 74,194);    ctx.stroke();
+
+  // Bust line
+  ctx.beginPath(); m(-36,-56); bz(-18,-52, 18,-52, 36,-56); ctx.stroke();
+  // Waist crease
+  ctx.beginPath(); m(-44,-4);  bz(-20,-2, 20,-2, 44,-4);    ctx.stroke();
+
+  ctx.restore();
+}
+
+let customRefImage = null;
+
+function renderRef() {
+  rCtx.fillStyle = BG;
+  rCtx.fillRect(0, 0, 480, 480);
+  if (customRefImage) {
+    const iw = customRefImage.naturalWidth, ih = customRefImage.naturalHeight;
+    const sc = Math.min(480 / iw, 480 / ih);
+    const dw = iw * sc, dh = ih * sc;
+    rCtx.drawImage(customRefImage, (480-dw)/2, (480-dh)/2, dw, dh);
+  } else {
+    drawFigure(rCtx, 1.0);
+  }
+}
+
+function renderGhost(opacityPct) {
+  gCtx.clearRect(0, 0, 480, 480);
+  if (customRefImage) {
+    const iw = customRefImage.naturalWidth, ih = customRefImage.naturalHeight;
+    const sc = Math.min(480 / iw, 480 / ih);
+    const dw = iw * sc, dh = ih * sc;
+    gCtx.globalAlpha = opacityPct / 100;
+    gCtx.drawImage(customRefImage, (480-dw)/2, (480-dh)/2, dw, dh);
+    gCtx.globalAlpha = 1;
+  } else {
+    drawFigure(gCtx, opacityPct / 100);
+  }
+}
+
+function loadRefImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  applyRefFile(file);
+}
+
+function applyRefFile(file) {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    customRefImage = img;
+    renderRef();
+    renderGhost(parseInt(document.getElementById('ghostSlider').value));
+    document.getElementById('resetRefBtn').style.display = '';
+  };
+  img.src = url;
+}
+
+function resetReference() {
+  customRefImage = null;
+  renderRef();
+  renderGhost(parseInt(document.getElementById('ghostSlider').value));
+  document.getElementById('resetRefBtn').style.display = 'none';
+}
+
+// Drag-drop onto reference panel
+const refBox = document.getElementById('refBox');
+refBox.addEventListener('dragover', e => { e.preventDefault(); refBox.classList.add('drag-over'); });
+refBox.addEventListener('dragleave', () => refBox.classList.remove('drag-over'));
+refBox.addEventListener('drop', e => {
+  e.preventDefault();
+  refBox.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) applyRefFile(file);
+});
+
+renderRef();
+renderGhost(20);
+
+// ─── Ghost opacity slider ─────────────────────────────────────────────────────
+const ghostSlider = document.getElementById('ghostSlider');
+const ghostValEl  = document.getElementById('ghostVal');
+ghostSlider.addEventListener('input', () => {
+  const v = parseInt(ghostSlider.value);
+  ghostValEl.textContent = v + '%';
+  renderGhost(v);
+});
+
+// ─── Edge sensitivity slider ─────────────────────────────────────────────────
+const edgeSlider = document.getElementById('edgeSlider');
+const edgeValEl  = document.getElementById('edgeVal');
+edgeSlider.addEventListener('input', () => {
+  edgeValEl.textContent = edgeSlider.value;
+});
+
+// ─── Brush size slider ────────────────────────────────────────────────────────
+const sizeSlider = document.getElementById('sizeSlider');
+const sizeValEl  = document.getElementById('sizeVal');
+sizeSlider.addEventListener('input', () => {
+  brushSize = parseInt(sizeSlider.value);
+  sizeValEl.textContent = brushSize;
+});
+
+// ─── Tool buttons ─────────────────────────────────────────────────────────────
+document.getElementById('btnPen').addEventListener('click', () => {
+  tool = 'pen';
+  document.getElementById('btnPen').classList.add('active');
+  document.getElementById('btnEraser').classList.remove('active');
+});
+document.getElementById('btnEraser').addEventListener('click', () => {
+  tool = 'eraser';
+  document.getElementById('btnEraser').classList.add('active');
+  document.getElementById('btnPen').classList.remove('active');
+});
+
+// ─── Save snapshot for undo ───────────────────────────────────────────────────
+function saveSnapshot() {
+  const snap = dCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+  history.push(snap);
+  if (history.length > 20) history.shift();
+}
+
+// ─── Clear ────────────────────────────────────────────────────────────────────
+document.getElementById('btnClear').addEventListener('click', () => {
+  dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  history = [];
+  hasDrawn = false;
+  document.getElementById('btnCalc').disabled = true;
+});
+
+// ─── Undo ─────────────────────────────────────────────────────────────────────
+function undo() {
+  if (history.length === 0) return;
+  const snap = history.pop();
+  dCtx.putImageData(snap, 0, 0);
+}
+document.getElementById('btnUndo').addEventListener('click', undo);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+});
+
+// ─── Drawing event helpers ────────────────────────────────────────────────────
+function getPos(e) {
+  const r = drawCanvas.getBoundingClientRect();
+  const scaleX = drawCanvas.width  / r.width;
+  const scaleY = drawCanvas.height / r.height;
+  if (e.touches) {
+    const t = e.touches[0];
+    return { x: (t.clientX - r.left) * scaleX, y: (t.clientY - r.top) * scaleY };
+  }
+  return { x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY };
+}
+
+function startDraw(e) {
+  e.preventDefault();
+  saveSnapshot();
+  isDown = true;
+  const p = getPos(e);
+  lastX = p.x; lastY = p.y;
+
+  dCtx.beginPath();
+  if (tool === 'eraser') {
+    dCtx.globalCompositeOperation = 'destination-out';
+    dCtx.strokeStyle = 'rgba(255,255,255,1)';
+  } else {
+    dCtx.globalCompositeOperation = 'source-over';
+    dCtx.strokeStyle = 'rgba(28,28,36,0.9)';
+  }
+  dCtx.lineWidth   = brushSize;
+  dCtx.lineCap     = 'round';
+  dCtx.lineJoin    = 'round';
+  dCtx.moveTo(lastX, lastY);
+
+  if (!hasDrawn) {
+    hasDrawn = true;
+    document.getElementById('btnCalc').disabled = false;
+  }
+}
+
+function moveDraw(e) {
+  if (!isDown) return;
+  e.preventDefault();
+  const p = getPos(e);
+
+  dCtx.lineTo(p.x, p.y);
+  dCtx.stroke();
+  dCtx.beginPath();
+  dCtx.moveTo(p.x, p.y);
+  lastX = p.x; lastY = p.y;
+}
+
+function endDraw(e) {
+  if (!isDown) return;
+  isDown = false;
+  dCtx.globalCompositeOperation = 'source-over';
+  dCtx.beginPath();
+}
+
+drawCanvas.addEventListener('mousedown',  startDraw);
+drawCanvas.addEventListener('mousemove',  moveDraw);
+drawCanvas.addEventListener('mouseup',    endDraw);
+drawCanvas.addEventListener('mouseleave', endDraw);
+drawCanvas.addEventListener('touchstart', startDraw, { passive: false });
+drawCanvas.addEventListener('touchmove',  moveDraw,  { passive: false });
+drawCanvas.addEventListener('touchend',   endDraw);
+
+// ─── Image processing helpers ─────────────────────────────────────────────────
+function toGrayscale(data, w, h) {
+  const gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+    gray[i] = 0.299*r + 0.587*g + 0.114*b;
+  }
+  return gray;
+}
+
+function gaussianBlur(gray, w, h) {
+  const kernel = [2,4,5,4,2, 4,9,12,9,4, 5,12,15,12,5, 4,9,12,9,4, 2,4,5,4,2];
+  const kSum = 159;
+  const out  = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let sum = 0;
+      for (let ky = -2; ky <= 2; ky++) {
+        for (let kx = -2; kx <= 2; kx++) {
+          const ny = Math.min(Math.max(y+ky, 0), h-1);
+          const nx = Math.min(Math.max(x+kx, 0), w-1);
+          sum += gray[ny*w + nx] * kernel[(ky+2)*5 + (kx+2)];
+        }
+      }
+      out[y*w + x] = sum / kSum;
+    }
+  }
+  return out;
+}
+
+function sobelEdges(gray, w, h, thr) {
+  const out = new Uint8Array(w * h);
+  for (let y = 1; y < h-1; y++) {
+    for (let x = 1; x < w-1; x++) {
+      const idx = y*w + x;
+      const gx =
+        -gray[(y-1)*w+(x-1)] + gray[(y-1)*w+(x+1)]
+        -2*gray[y*w+(x-1)]   + 2*gray[y*w+(x+1)]
+        -gray[(y+1)*w+(x-1)] + gray[(y+1)*w+(x+1)];
+      const gy =
+        -gray[(y-1)*w+(x-1)] - 2*gray[(y-1)*w+x] - gray[(y-1)*w+(x+1)]
+        +gray[(y+1)*w+(x-1)] + 2*gray[(y+1)*w+x] + gray[(y+1)*w+(x+1)];
+      out[idx] = Math.sqrt(gx*gx + gy*gy) > thr ? 255 : 0;
+    }
+  }
+  return out;
+}
+
+function detectEdges(canvas, thr) {
+  const ctx  = canvas.getContext('2d');
+  const idata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const gray = toGrayscale(idata.data, canvas.width, canvas.height);
+  const blur = gaussianBlur(gray, canvas.width, canvas.height);
+  return sobelEdges(blur, canvas.width, canvas.height, thr);
+}
+
+function dilate(mask, w, h, radius) {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (mask[y*w+x] !== 255) continue;
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx*dx + dy*dy > radius*radius) continue;
+          const nx = x+dx, ny = y+dy;
+          if (nx >= 0 && nx < w && ny >= 0 && ny < h) out[ny*w+nx] = 255;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function getUserMask(canvas) {
+  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  const mask = new Uint8Array(canvas.width * canvas.height);
+  for (let i = 0; i < canvas.width * canvas.height; i++)
+    mask[i] = data[i*4+3] > 20 ? 255 : 0;
+  return mask;
+}
+
+// ─── Calculate ────────────────────────────────────────────────────────────────
+document.getElementById('btnCalc').addEventListener('click', calculate);
+
+function clamp(a, b, v) { return Math.max(a, Math.min(b, v)); }
+
+function calculate() {
+  const thr       = parseInt(edgeSlider.value);
+  const W = refCanvas.width, H = refCanvas.height;
+
+  const refEdges  = detectEdges(refCanvas, thr);
+  const userMask  = getUserMask(drawCanvas);
+  const refDilated  = dilate(refEdges,  W, H, 7);
+  const userDilated = dilate(userMask,  W, H, 7);
+
+  let covered  = 0, refTotal = 0, userExtra = 0;
+  for (let i = 0; i < W * H; i++) {
+    if (refEdges[i]  === 255) refTotal++;
+    if (refEdges[i]  === 255 && userDilated[i] === 255) covered++;
+    if (userMask[i]  === 255 && refDilated[i]  === 0)   userExtra++;
+  }
+
+  if (refTotal === 0) return;
+  const coverage   = covered / refTotal;
+  const extraRatio = userExtra / refTotal;
+  const penalty    = extraRatio > 0.5 ? Math.min(0.2, (extraRatio - 0.5) * 0.1) : 0;
+  const score      = Math.round(clamp(0, 100, (coverage - penalty) * 100));
+
+  showResult(score, refEdges, userMask, W, H);
+}
+
+// ─── Result display ───────────────────────────────────────────────────────────
+function gradeInfo(score) {
+  if (score >= 90) return { grade: 'S', color: '#fbbf24', desc: '完美臨摹！輪廓高度吻合。' };
+  if (score >= 75) return { grade: 'A', color: '#818cf8', desc: '優秀！大部分輪廓都對齊了。' };
+  if (score >= 60) return { grade: 'B', color: '#34d399', desc: '良好，部分輪廓有差異。' };
+  if (score >= 45) return { grade: 'C', color: '#fb923c', desc: '尚可，繼續練習！' };
+  return              { grade: 'D', color: '#f87171', desc: '加油！多加練習熟悉輪廓。' };
+}
+
+function showResult(score, refEdges, userMask, W, H) {
+  const { grade, color, desc } = gradeInfo(score);
+  const CIRC = 389.6;
+  const offset = CIRC * (1 - score / 100);
+
+  // Score ring animation
+  const arc = document.getElementById('ringArc');
+  arc.style.stroke = color;
+  arc.style.strokeDashoffset = CIRC; // reset
+  arc.getBoundingClientRect(); // force reflow
+
+  const numEl   = document.getElementById('scoreNum');
+  const badgeEl = document.getElementById('gradeBadge');
+  const descEl  = document.getElementById('resultDesc');
+
+  badgeEl.textContent = grade;
+  badgeEl.style.color = color;
+  descEl.textContent  = desc;
+
+  // Animate ring & number
+  const start  = performance.now();
+  const dur    = 1200;
+  function easeOut(t) { return 1 - Math.pow(1-t, 3); }
+
+  function tick(now) {
+    const t  = Math.min((now - start) / dur, 1);
+    const e  = easeOut(t);
+    const cur = Math.round(score * e);
+    numEl.textContent = cur;
+    arc.style.strokeDashoffset = CIRC - (CIRC - offset) * e;
+    if (t < 1) requestAnimationFrame(tick);
+    else { numEl.textContent = score; arc.style.strokeDashoffset = offset; }
+  }
+  requestAnimationFrame(tick);
+
+  // Comparison overlay (draw at 480×480, scale to 460×460)
+  const offscreen = document.createElement('canvas');
+  offscreen.width  = W;
+  offscreen.height = H;
+  const oCtx = offscreen.getContext('2d');
+
+  const oData = oCtx.createImageData(W, H);
+  const d     = oData.data;
+
+  const refDilated  = dilate(refEdges, W, H, 7);
+  const userDilated = dilate(userMask, W, H, 7);
+
+  for (let i = 0; i < W * H; i++) {
+    const isRef  = refEdges[i]  === 255;
+    const isUser = userMask[i]  === 255;
+    const overlap = isRef && userDilated[i] === 255 || isUser && refDilated[i] === 255;
+    const idx = i * 4;
+    if (overlap && (isRef || isUser)) {
+      // green
+      d[idx]=163; d[idx+1]=230; d[idx+2]=53; d[idx+3]=255;
+    } else if (isRef) {
+      d[idx]=248; d[idx+1]=113; d[idx+2]=113; d[idx+3]=220;
+    } else if (isUser) {
+      d[idx]=96;  d[idx+1]=165; d[idx+2]=250; d[idx+3]=200;
+    } else {
+      d[idx]=13;  d[idx+1]=13;  d[idx+2]=26;  d[idx+3]=255;
+    }
+  }
+  oCtx.putImageData(oData, 0, 0);
+
+  const cmp = document.getElementById('compareCanvas');
+  const cCtx = cmp.getContext('2d');
+  cCtx.clearRect(0, 0, cmp.width, cmp.height);
+  cCtx.drawImage(offscreen, 0, 0, W, H, 0, 0, cmp.width, cmp.height);
+
+  // Show result
+  const section = document.getElementById('resultSection');
+  section.classList.add('visible');
+  setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+}
+</script>
+</body>
+</html>
