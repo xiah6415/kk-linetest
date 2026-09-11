@@ -828,6 +828,10 @@ colorPicker.addEventListener('input', () => {
 document.getElementById('btnRandom').addEventListener('click', () => {
   const idx = Math.floor(Math.random() * PRESET_REFS.length);
   applyRefSrc(PRESET_REFS[idx].src);
+  dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  history = [];
+  hasDrawn = false;
+  document.getElementById('btnCalc').disabled = true;
 });
 
 // ─── Eye toggle (ghost visibility) ───────────────────────────────────────────
