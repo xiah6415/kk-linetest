@@ -172,15 +172,80 @@
     font-size: .75rem;
   }
 
-  /* Toolbar */
-  .toolbar {
+  /* Right panel: canvas + tool sidebar */
+  .draw-and-tools {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-top: 20px;
+    gap: 8px;
+    align-items: stretch;
   }
+  .draw-and-tools .canvas-box {
+    flex: 1;
+    min-width: 0;
+  }
+  .tool-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 44px;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .tool-btn {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    border: 1px solid #222238;
+    background: none;
+    color: #888;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+    padding: 0;
+    font-family: inherit;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .tool-btn:hover { border-color: #555; color: #ddd; }
+  .tool-btn.active { border-color: #818cf8; background: #818cf811; color: #818cf8; }
+  .tool-btn.eye-off { opacity: .35; }
+  .tool-sep { height: 1px; background: #222238; margin: 4px 0; }
+
+  /* Color tool */
+  .color-tool { position: relative; overflow: hidden; cursor: pointer; }
+  .color-tool input[type=color] {
+    position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; cursor: pointer;
+  }
+  #colorSwatch {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.2);
+    display: block; pointer-events: none;
+  }
+
+  /* Vertical brush size slider */
+  .size-tool {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 4px;
+    padding: 6px 0;
+  }
+  .size-tool input[type=range] {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 4px; height: 72px;
+    accent-color: #818cf8;
+    cursor: pointer;
+  }
+  .size-tool span {
+    font-size: .6rem; color: #555; line-height: 1;
+  }
+
+  /* Opacity row */
+  .opacity-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: .75rem; color: #666;
+  }
+  .opacity-row input[type=range] { flex: 1; accent-color: #818cf8; }
+  .opacity-row span { min-width: 30px; text-align: right; color: #888; font-size: .72rem; }
 
   .ref-drop-hint {
     position:absolute; inset:0; display:flex; align-items:center;
@@ -352,51 +417,8 @@
     flex-shrink: 0;
   }
 
-  /* Right panel: canvas + thumbnail strip */
-  .draw-panel-body {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-  }
-  .draw-panel-body .canvas-box {
-    flex: 1;
-    min-width: 0;
-  }
-  .thumb-strip {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    width: 64px;
-    flex-shrink: 0;
-  }
-  .thumb-btn {
-    width: 64px;
-    height: 64px;
-    border-radius: 6px;
-    border: 2px solid #222238;
-    overflow: hidden;
-    cursor: pointer;
-    padding: 0;
-    background: #1a1a2e;
-    transition: border-color .15s;
-    flex-shrink: 0;
-  }
-  .thumb-btn img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .thumb-btn:hover { border-color: #555; }
-  .thumb-btn.active { border-color: #818cf8; }
   .thumb-add {
-    width: 64px; height: 32px;
-    border-radius: 6px;
-    border: 1px dashed #333;
-    background: none;
-    color: #444;
-    font-size: .65rem;
-    cursor: pointer;
-    transition: all .15s;
+    display: none;
   }
   .thumb-add:hover { border-color: #818cf8; color: #818cf8; }
 
@@ -429,47 +451,42 @@
     <input type="file" id="refFileInput" accept="image/*" style="display:none" onchange="loadRefImage(event)">
   </div>
 
-  <!-- RIGHT: Drawing area + thumbnail strip -->
+  <!-- RIGHT: Drawing area + tool sidebar -->
   <div class="panel">
     <div class="panel-label">Drawing Area 作畫區</div>
-    <div class="draw-panel-body">
+    <div class="draw-and-tools">
       <div class="canvas-box draw-box" id="drawBox">
         <div class="draw-wrap">
           <canvas id="ghostCanvas" width="480" height="480"></canvas>
           <canvas id="drawCanvas" width="480" height="480"></canvas>
         </div>
       </div>
-      <div class="thumb-strip" id="thumbStrip">
-        <!-- filled by JS -->
-        <button class="thumb-add" onclick="document.getElementById('refFileInput').click()">＋ 自訂</button>
+      <div class="tool-sidebar">
+        <button class="tool-btn" id="btnRandom" title="隨機換圖">🎲</button>
+        <button class="tool-btn" id="btnEye" title="輔助顯示">👁</button>
+        <div class="tool-sep"></div>
+        <button class="tool-btn active" id="btnPen" title="筆">✏️</button>
+        <button class="tool-btn" id="btnEraser" title="橡皮擦">⬜</button>
+        <label class="tool-btn color-tool" title="筆刷顏色">
+          <input type="color" id="colorPicker" value="#1c1c24">
+          <span id="colorSwatch" style="display:block;width:22px;height:22px;border-radius:4px;background:#1c1c24;pointer-events:none;"></span>
+        </label>
+        <div class="tool-sep"></div>
+        <div class="size-tool">
+          <input type="range" id="sizeSlider" min="1" max="25" value="5" orient="vertical">
+          <span id="sizeVal">5</span>
+        </div>
+        <div class="tool-sep"></div>
+        <button class="tool-btn" id="btnClear" title="清除">🗑</button>
+        <button class="tool-btn" id="btnUndo" title="復原">↩</button>
       </div>
     </div>
-    <div class="ghost-row">
-      <span>參考透明度</span>
-      <input type="range" id="ghostSlider" min="10" max="60" value="20">
+    <div class="opacity-row">
+      <span>輔助透明度</span>
+      <input type="range" id="ghostSlider" min="0" max="100" value="20">
       <span id="ghostVal">20%</span>
     </div>
   </div>
-</div>
-
-<!-- Toolbar -->
-<div class="toolbar">
-  <button class="btn-sm active" id="btnPen">🖊 筆</button>
-  <button class="btn-sm" id="btnEraser">橡皮擦</button>
-  <div class="toolbar-sep"></div>
-  <div class="size-row">
-    <span>筆刷大小</span>
-    <input type="range" id="sizeSlider" min="1" max="25" value="5">
-    <span id="sizeVal">5</span>
-  </div>
-  <div class="toolbar-sep"></div>
-  <label class="color-wrap" title="筆刷顏色">
-    <input type="color" id="colorPicker" value="#1c1c24">
-    <span id="colorSwatch" style="background:#1c1c24"></span>
-  </label>
-  <div class="toolbar-sep"></div>
-  <button class="btn-sm" id="btnClear">清除</button>
-  <button class="btn-sm" id="btnUndo">↩ 復原</button>
 </div>
 
 <div class="calc-wrap">
@@ -716,25 +733,9 @@ function setActivePreset(idx) {
 
 // Build thumbnail strip
 (function buildPresets() {
-  const strip = document.getElementById('thumbStrip');
-  if (!strip || typeof PRESET_REFS === 'undefined') return;
-  const addBtn = strip.querySelector('.thumb-add');
-  PRESET_REFS.forEach((ref, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'thumb-btn';
-    btn.title = ref.label;
-    const img = document.createElement('img');
-    img.src = ref.src;
-    btn.appendChild(img);
-    btn.onclick = () => { applyRefSrc(ref.src); setActivePreset(i); };
-    strip.insertBefore(btn, addBtn);
-  });
-  // Auto-load random preset
-  if (PRESET_REFS.length > 0) {
-    const randIdx = Math.floor(Math.random() * PRESET_REFS.length);
-    applyRefSrc(PRESET_REFS[randIdx].src);
-    setTimeout(() => setActivePreset(randIdx), 100);
-  }
+  if (typeof PRESET_REFS === 'undefined' || PRESET_REFS.length === 0) return;
+  const randIdx = Math.floor(Math.random() * PRESET_REFS.length);
+  applyRefSrc(PRESET_REFS[randIdx].src);
 })();
 
 // Drag-drop onto reference panel
@@ -813,13 +814,31 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
 });
 
-// Color picker
+// Color picker (label.color-tool wraps the input — click bubbles naturally)
 const colorPicker = document.getElementById('colorPicker');
 const colorSwatch = document.getElementById('colorSwatch');
-document.querySelector('.color-wrap').addEventListener('click', () => colorPicker.click());
 colorPicker.addEventListener('input', () => {
   brushColor = colorPicker.value;
   colorSwatch.style.background = brushColor;
+});
+
+// ─── Random ref button ────────────────────────────────────────────────────────
+document.getElementById('btnRandom').addEventListener('click', () => {
+  const idx = Math.floor(Math.random() * PRESET_REFS.length);
+  applyRefSrc(PRESET_REFS[idx].src);
+});
+
+// ─── Eye toggle (ghost visibility) ───────────────────────────────────────────
+document.getElementById('btnEye').addEventListener('click', () => {
+  const btn = document.getElementById('btnEye');
+  const gc  = document.getElementById('ghostCanvas');
+  if (gc.style.display === 'none') {
+    gc.style.display = '';
+    btn.classList.remove('eye-off');
+  } else {
+    gc.style.display = 'none';
+    btn.classList.add('eye-off');
+  }
 });
 
 // ─── Drawing event helpers ────────────────────────────────────────────────────
